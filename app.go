@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/tunnels-is/niceland-app/core"
+	"github.com/tunnels-is/nicelandvpn-desktop/core"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -52,10 +52,6 @@ func (a *App) startup(ctx context.Context) {
 		}
 	}
 
-}
-
-func (a *App) GetVersion() string {
-	return VERSION
 }
 
 func (a *App) shutdown(ctx context.Context) {

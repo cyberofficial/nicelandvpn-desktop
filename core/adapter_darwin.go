@@ -74,7 +74,12 @@ func EnablePacketRouting() error {
 	DisableIPv6()
 	CreateLog("connect", "Creating default route")
 
-	_, err := exec.Command("route", "delete", "default").Output()
+	err := SetInterfaceStateToUp(TUNNEL_ADAPTER_NAME)
+	if err != nil {
+		return err
+	}
+
+	_, err = exec.Command("route", "delete", "default").Output()
 	if err != nil {
 		CreateErrorLog("", err, "unable to delete default route")
 		return err
@@ -90,10 +95,10 @@ func EnablePacketRouting() error {
 }
 
 func SetInterfaceStateToDown() (err error) {
-	return DisableAdapter()
+	return RestoreOriginalDefaultRoute()
 }
 
-func DisableAdapter() (err error) {
+func RestoreOriginalDefaultRoute() (err error) {
 	defer RecoverAndLogToFile()
 
 	_, err = exec.Command("route", "delete", "default").Output()
@@ -102,8 +107,6 @@ func DisableAdapter() (err error) {
 		return err
 	}
 	CreateLog("", "Default route to tunnel interface removed")
-
-	GLOBAL_STATE.TunnelInitialized = false
 
 	out, err := exec.Command("route", "add", "default", GLOBAL_STATE.DefaultInterface.DefaultRouter).Output()
 	if err != nil {
@@ -143,7 +146,7 @@ func DisableIPv6() {
 
 func ResetAfterFailedConnectionAttempt() {
 	defer RecoverAndLogToFile()
-	DisableAdapter()
+	RestoreOriginalDefaultRoute()
 	RestoreIPv6()
 }
 
@@ -252,13 +255,12 @@ func LaunchPreperation() (err error) {
 
 	CreateLog("", "Initializing link/up on device "+A.Interface.Name())
 
-	ipOut, err := exec.Command("ifconfig", A.Interface.Name(), "10.4.3.2", "10.4.3.1", "up").Output()
+	err = SetInterfaceStateToUp(TUNNEL_ADAPTER_NAME)
 	if err != nil {
-		CreateErrorLog("", err, "unable to bring up tunnel adapter ", "STDOUT", string(ipOut))
 		return err
 	}
 
-	ipOut, err = exec.Command("ifconfig", A.Interface.Name(), "mtu", "65535").Output()
+	ipOut, err := exec.Command("ifconfig", A.Interface.Name(), "mtu", "65535").Output()
 	if err != nil {
 		CreateErrorLog("", err, "Unable to change mtu", "STDOUT", string(ipOut))
 		return err
@@ -266,6 +268,18 @@ func LaunchPreperation() (err error) {
 
 	GLOBAL_STATE.TunnelInitialized = true
 	return
+}
+
+func SetInterfaceStateToUp(name string) error {
+
+	ipOut, err := exec.Command("ifconfig", A.Interface.Name(), "10.4.3.2", "10.4.3.1", "up").Output()
+
+	if err != nil {
+		CreateErrorLog("", err, "unable to bring up tunnel adapter ", "STDOUT", string(ipOut))
+		return err
+	}
+
+	return nil
 }
 
 func DeleteTunnelInterfaceRoutes(IP string) (err error) {

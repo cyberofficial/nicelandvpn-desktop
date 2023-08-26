@@ -65,10 +65,12 @@ WAITFORDEVICE:
 	}
 
 	for {
-		if packetSize > 0 {
+		// if packetSize > 0 {
+		if packet != nil {
 			A.ReleaseReceivePacket(packet)
 		}
-		packet = nil
+
+		// packet = nil
 		if GLOBAL_STATE.Exiting {
 			CreateLog("", "nicelandVPN is exiting, closing adapter reader")
 			return
@@ -142,12 +144,11 @@ WAITFORDEVICE:
 
 			parsedTCPLayer.SrcPort = layers.TCPPort(outgoingPort.Mapped)
 
-			outgoingPort.LastActivity = time.Now()
 			AS.TCPHeader.DstIP = parsedIPLayer.DstIP
 			parsedIPLayer.SrcIP = AS.TCPHeader.SrcIP
 			parsedTCPLayer.SetNetworkLayerForChecksum(&AS.TCPHeader)
-			buffer = gopacket.NewSerializeBuffer()
 
+			buffer = gopacket.NewSerializeBuffer()
 			if applicationLayer != nil {
 				gopacket.SerializeLayers(buffer, serializeOptions, parsedIPLayer, parsedTCPLayer, gopacket.Payload(applicationLayer.LayerContents()))
 

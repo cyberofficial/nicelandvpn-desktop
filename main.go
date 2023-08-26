@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tunnels-is/niceland-app/core"
+	"github.com/tunnels-is/nicelandvpn-desktop/core"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -17,7 +17,7 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-const VERSION = "1.1.0"
+const VERSION = "1.1.3"
 const PRODUCTION = true
 const ENABLE_INSTERFACE = true
 
@@ -38,6 +38,7 @@ func main() {
 
 	core.PRODUCTION = PRODUCTION
 	core.ENABLE_INSTERFACE = ENABLE_INSTERFACE
+	core.GLOBAL_STATE.Version = VERSION
 
 	go core.StartService(MONITOR)
 
@@ -73,7 +74,14 @@ func main() {
 		},
 
 		Mac: &mac.Options{
-			TitleBar:   mac.TitleBarHidden(),
+			TitleBar: &mac.TitleBar{
+				TitlebarAppearsTransparent: true,
+				HideTitle:                  true,
+				HideTitleBar:               false,
+				FullSizeContent:            true,
+				UseToolbar:                 true,
+				HideToolbarSeparator:       false,
+			},
 			Appearance: "NSAppearanceNameDarkAqua",
 			About: &mac.AboutInfo{
 				Title:   "Niceland",
