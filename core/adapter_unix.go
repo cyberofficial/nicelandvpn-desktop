@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -32,19 +31,16 @@ func (A *Adapter) Uninstall() (err error) {
 }
 
 func GetIPv6Settings(PotentialDefault *CONNECTION_SETTINGS) {
-	out, err := exec.Command("bash", "-c", "sysctl net.ipv6.conf."+PotentialDefault.IFName+".disable_ipv6").Output()
+	out, err := exec.Command("bash", "-c", "cat /proc/sys/net/ipv6/conf/"+PotentialDefault.IFName+"/disable_ipv6").CombinedOutput()
 	if err != nil {
-		CreateErrorLog("", err, "SYSCTL || Error getting ipv6 settings for interface: ", PotentialDefault.IFName, " || msg: ", err, " || output: ", string(out))
+		CreateErrorLog("", err, "Error getting ipv6 settings for interface: ", PotentialDefault.IFName, " || msg: ", err, " || output: ", string(out))
 		return
 	}
 
-	outSplit := strings.Split(string(out), " ")
-	if len(outSplit) < 3 {
-		CreateErrorLog("", err, "SYSCTL || Error getting ipv6 settings for interface: ", PotentialDefault.IFName, " || output: ", string(out))
-		return
-	}
+	outString := string(out)
+	outString = strings.TrimSpace(outString)
 
-	if outSplit[2] == "0" {
+	if outString == "0" {
 		PotentialDefault.IPV6Enabled = false
 	} else {
 		PotentialDefault.IPV6Enabled = true
@@ -360,7 +356,7 @@ func AddRoute(IP string) (err error) {
 
 	out, err := exec.Command("ip", "route", "add", IP, "via", GLOBAL_STATE.DefaultInterface.DefaultRouter, "metric", "0").Output()
 	if err != nil {
-		CreateErrorLog("", "IP || Unable to add route to: ", IP, " || Gateway: ", TUNNEL_ADAPTER_ADDRESS, " || msg: ", err, " || output: ", string(out))
+		CreateErrorLog("", "IP || Unable to add route to: ", IP, " || Gateway: ", GLOBAL_STATE.DefaultInterface.DefaultRouter, " || msg: ", err, " || output: ", string(out))
 		return err
 	}
 
@@ -382,7 +378,7 @@ func DeleteRoute(IP string, ignoreActiveRouter bool) (err error) {
 
 	out, err := exec.Command("ip", "route", "del", IP).Output()
 	if err != nil {
-		CreateErrorLog("", "IP || Unable to delete route: ", IP, " || Gateway: ", TUNNEL_ADAPTER_ADDRESS, " || msg: ", err, " || output: ", string(out))
+		CreateErrorLog("", "IP || Unable to delete route: ", IP, " || msg: ", err, " || output: ", string(out))
 		return
 	}
 
@@ -414,7 +410,6 @@ func FindDefaultInterfaceAndGateway() (POTENTIAL_DEFAULT *CONNECTION_SETTINGS, e
 				metricInt, err = strconv.Atoi(fields[len(fields)-1])
 				if err != nil {
 					CreateErrorLog("", "Unable to parse interface metric", fields)
-					log.Println(err)
 					return nil, err
 				}
 			} else {
@@ -467,6 +462,12 @@ func FindDefaultInterfaceAndGateway() (POTENTIAL_DEFAULT *CONNECTION_SETTINGS, e
 
 func RestoreIPv6() {
 	defer RecoverAndLogToFile()
+
+	if !C.DisableIPv6OnConnect {
+		CreateLog("connect", "IPv6 settings unchanged")
+		return
+	}
+
 	if GLOBAL_STATE.DefaultInterface == nil {
 		CreateErrorLog("", "Failed to restore IPv6 settings, interface settings not found")
 		return
@@ -474,16 +475,11 @@ func RestoreIPv6() {
 
 	if GLOBAL_STATE.DefaultInterface.IPV6Enabled {
 
-		out, err := exec.Command("sysctl", "-w", "net.ipv6.conf."+GLOBAL_STATE.DefaultInterface.IFName+".disable_ipv6=1").Output()
+		out, err := exec.Command("bash", "-c", "echo 0 > /proc/sys/net/ipv6/conf/"+GLOBAL_STATE.DefaultInterface.IFName+"/disable_ipv6").CombinedOutput()
 		if err != nil {
-			CreateErrorLog("", err, "SYSCTL || Error resting IPv6 settings || msg: ", err, " || output: ", string(out))
+			CreateErrorLog("", err, " || Error resting IPv6 settings || msg: ", err, " || output: ", string(out))
 		}
 
-	} else {
-		out, err := exec.Command("sysctl", "-w", "net.ipv6.conf."+GLOBAL_STATE.DefaultInterface.IFName+".disable_ipv6=0").Output()
-		if err != nil {
-			CreateErrorLog("", err, "SYSCTL || Error resting IPv6 settings || msg: ", err, " || output: ", string(out))
-		}
 	}
 
 	return
@@ -493,11 +489,16 @@ func RestoreIPv6() {
 func DisableIPv6() error {
 	defer RecoverAndLogToFile()
 
+	if !C.DisableIPv6OnConnect {
+		CreateLog("connect", "IPv6 settings unchanged")
+		return nil
+	}
+
 	CreateLog("connect", "Disabling IPv6 on interface: ", GLOBAL_STATE.DefaultInterface.IFName)
 
-	out, err := exec.Command("sysctl", "-w", "net.ipv6.conf."+GLOBAL_STATE.DefaultInterface.IFName+".disable_ipv6=1").Output()
+	out, err := exec.Command("bash", "-c", "echo 1 > /proc/sys/net/ipv6/conf/"+GLOBAL_STATE.DefaultInterface.IFName+"/disable_ipv6").CombinedOutput()
 	if err != nil {
-		CreateErrorLog("", err, "SYSCTL || Unable to turn off IPv6 support || msg: ", err, " || output: ", string(out))
+		CreateErrorLog("", err, " || Unable to turn off IPv6 support || msg: ", err, " || output: ", string(out))
 		return err
 	}
 
